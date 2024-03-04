@@ -57,14 +57,14 @@ Here is an aside to explain how Banks and MIDI PC messages work on a more abstra
 
 ## Known bugs
 
-- Totating the encoders too quickly in one direction will generate a signal that corresponds with a rotation in the opposite direction meaning the desired outcome may be reversed (e.g. incrementing a value to quickly may actually decrement it instead). This may be due to the lack of debouncing for the rotatry encoder output.
+- Rotating the encoders too quickly in one direction will generate a signal that corresponds with a rotation in the opposite direction meaning the desired outcome may be reversed (e.g. incrementing a value to quickly may actually decrement it instead). This may be due to the lack of debouncing for the rotatry encoder output.
 
 ## Appendix
-<sup>0</sup>*Musical Instrument Digital Interface*
-<sup>1</sup>*Program Change*
-<sup>2</sup>*Most Significant Bit*
-<sup>3</sup>*Least Significant Bit*
-<sup>4</sup>*Digital Audio Workstation*
+<sup>0</sup>*Musical Instrument Digital Interface* \
+<sup>1</sup>*Program Change* \
+<sup>2</sup>*Most Significant Bit* \
+<sup>3</sup>*Least Significant Bit* \
+<sup>4</sup>*Digital Audio Workstation* \
 <sup>5</sup>[*Control Change*](https://www.midi.org/specifications-old/item/table-3-control-change-messages-data-bytes-2)
 
 ## Version Log
