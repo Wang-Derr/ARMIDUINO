@@ -71,7 +71,7 @@ The control scheme for this implementation is as follows:
   - **Pressing**: Reset the Voice number to 0.
 - *Encoder3*:
   - **Rotating**: Increment/Decrement the MIDI channel number.
-  - **Pressing**: Send the designated MSB, LSB, and PC to the specified MIDI channel.2
+  - **Pressing**: Send the designated MSB, LSB, and PC to the specified MIDI channel.
 
 ## Required Parts
 
@@ -94,7 +94,7 @@ The control scheme for this implementation is as follows:
 ## Assembly Instructions
 
 ![assembly gif](images/Assembly.gif)
-[Link to guide](Assembly_Instructions.md)
+Please follow [this guide](Assembly_Instructions.md).
 
 ## Future Plans
 

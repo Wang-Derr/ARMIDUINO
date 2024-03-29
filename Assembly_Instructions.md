@@ -52,7 +52,8 @@
 
 ### Step 7 - Flip it over and install the 10mm standoffs to the bottom of your Arduino Mega
 
-![Step 9](images/step_9.jpg)
+![Step 9](images/step_9.jpg) \
+**NOTE** the resistors shown in this image may not seemingly match my instructions to use two 220 ohm resistors, but mathmatically they work out to be the same value; I was just short on 220 ohm resistors when I assembled the circuit and had to improvise.
 
 ### Step 8 - Install 4 M3 screws into the bottom of part #2
 
