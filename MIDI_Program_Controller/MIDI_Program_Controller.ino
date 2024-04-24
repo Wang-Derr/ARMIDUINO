@@ -207,7 +207,7 @@ void PCNumEncoder() {
   }
   stateSW2 = digitalRead(encSW2);
   if (stateSW2 == LOW && millis() - lastSW2 > 50) {
-    PCNum = 0;
+    PCNum = 1;
     lcd.setCursor(10, 1);
     lcd.print("   ");
     lcd.setCursor(10, 1);

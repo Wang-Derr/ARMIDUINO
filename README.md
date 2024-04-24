@@ -62,7 +62,7 @@ The control scheme for this implementation is as follows:
 
 - *Encoder0*:
   - **Rotating**: Increment/Decrement the Voice<sup>6</sup> category; the item in the 3rd row.
-  - **Pressing and Holding**: Disables the complete readout of each Voice name; some exceed the 20 character limit and will scroll across the screen unless *Encoder0* is held down. This is used in combination with rotating one of the encoders while scrolling through Voices.
+  - **Pressing**: Prints the entire name for a Voice if it exceeds the 20 character limit.
 - *Encoder1*:
   - **Rotating**: Increment/Decrement the Voice number by a value of 100.
   - **Pressing**: Reset the Voice number's hundreds place value to 0.
@@ -103,7 +103,7 @@ Please follow [this guide](Assembly_Instructions.md).
 
 ## Known bugs
 
-- Rotating the encoders too quickly in one direction will generate a signal that corresponds with a rotation in the opposite direction meaning the desired outcome may be reversed (e.g. incrementing a value to quickly may actually decrement it instead). This may be due to the lack of debouncing for the rotatry encoder output.
+- Rotating the encoders too quickly in one direction will generate a signal that corresponds with a rotation in the opposite direction meaning the desired outcome may be reversed (e.g. incrementing a value too quickly may actually decrement it instead). This may be due to the lack of debouncing for the rotatry encoder output.
 - Feel free to report an Issue or make a Pull Request if you run into additional problems
 
 ## Appendix
@@ -112,10 +112,19 @@ Please follow [this guide](Assembly_Instructions.md).
 <sup>2</sup>*Most Significant Bit* \
 <sup>3</sup>*Least Significant Bit* \
 <sup>4</sup>*Digital Audio Workstation* \
-<sup>5</sup>[*Control Change*](https://www.midi.org/specifications-old/item/table-3-control-change-messages-data-bytes-2) \
+<sup>5</sup>[*Control Change*](https://midi.org/midi-1-0-control-change-messages) \
 <sup>6</sup>*Probably confusing for some, myself included, but the MIDI Reference that Yamaha provides for the DD75 refers to each program/instrument as a "Voice"; therefore, I do as well. Usage here should not be confused for note polyphony as is the use case of the term "Voice" when applied (most often) to synthesizers.*
 
 ## Version Log
+
+### V1.0.1
+Change:
+- Set default for scrolling through voices in the YAMAHA DD75 implementation to not display the whole name unless *Encoder0* is pressed
+- Lowered the display time for notifying users that the MIDI message has been sent for the YAMAHA DD75 implementation from 5 seconds to 1.5 seconds
+
+Fix:
+- PC bug with YAMAHA DD75 implementation where it takes values 0-127 instead of 1-128 which seemingly goes against MIDI spec
+- Default PC value for the generic implementation set to 1 (formerly 0)
 
 ### V1.0.0
 Official Release of Software and Guide

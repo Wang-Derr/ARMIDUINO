@@ -116,23 +116,13 @@ void LCDUpdater() {
   }
 
   if (voiceArrayIndex != prevVoiceArrayIndex) {
-    stateSW0 = digitalRead(ENCODER_SW0);
     PROGMEM_readAnything (&voiceArray[voiceArrayIndex], currentVoice);
     lcd.setCursor(0, 3);
     lcd.print("                    ");
     lcd.setCursor(0, 3);
 
-    // Pressing and holding Encoder0 (CategoryEncoder) while scrolling through voices will skip printing the entire name of a voice that exceeds the bounds of the LCD
-    if (currentVoice.voiceNameLen > MAX_LCD_COLUMN && stateSW0 == HIGH) {
-      scrollMessage(3, String(currentVoice.voiceName), 300);
-      lcd.setCursor(0, 3);
-      lcd.print(String(currentVoice.voiceName).substring(0, MAX_LCD_COLUMN));
-    } else if (currentVoice.voiceNameLen > MAX_LCD_COLUMN && stateSW0 == LOW) {
-      lcd.setCursor(0, 3);
-      lcd.print(String(currentVoice.voiceName).substring(0, MAX_LCD_COLUMN));
-    } else {
-      lcd.print(String(currentVoice.voiceName));
-    }
+    lcd.setCursor(0, 3);
+    lcd.print(String(currentVoice.voiceName).substring(0, MAX_LCD_COLUMN));
 
     categoryArrayIndex = currentVoice.category;
   }
@@ -175,6 +165,18 @@ void CategoryEncoder() {
     voiceArrayIndex = categoryArray[categoryArrayIndex].firstInstance;
     LCDUpdater();
     prevCLK0 = currCLK0;
+  }
+  // Pressing Encoder0 will print the entire name of a voice that exceeds the bounds of the LCD
+  stateSW0 = digitalRead(ENCODER_SW0);
+  if (currentVoice.voiceNameLen > MAX_LCD_COLUMN && stateSW0 == LOW) {
+    PROGMEM_readAnything (&voiceArray[voiceArrayIndex], currentVoice);
+    lcd.setCursor(0, 3);
+    lcd.print("                    ");
+    lcd.setCursor(0, 3);
+    scrollMessage(3, String(currentVoice.voiceName), 300);
+    lcd.setCursor(0, 3);
+    lcd.print(String(currentVoice.voiceName).substring(0, MAX_LCD_COLUMN));
+    LCDUpdater();
   }
 }
 
@@ -281,7 +283,13 @@ void ChanNumEncoder() {
     MIDI.sendControlChange(LSB_CC, currentVoice.LSBValue, chanNum);
     delay(300);
     // Send a MIDI PC message to set the Program Number
-    MIDI.sendProgramChange(currentVoice.PCNumber, chanNum);
+    MIDI.sendProgramChange((currentVoice.PCNumber - 1), chanNum);
+    /*
+    The MIDI spec states that PC numbers are 1-128, but for the DD75 I've observed an issue
+    where the actual voice that is chosen is the PC number +1. So when I send PC #2, it
+    actually selects the voice that is associated with PC #3. I'm not sure as to why, but
+    that is why I decrement the PCNumber by 1 when I send it above.
+    */
 
     lcd.setCursor(0, 1);
     lcd.print("                    ");
@@ -291,7 +299,7 @@ void ChanNumEncoder() {
     lcd.print("Sending Voice #" + String(voiceArrayIndex));
     lcd.setCursor(0, 2);
     lcd.print("on MIDI channel #" + String(chanNum));
-    delay(5000);
+    delay(1500);
 
     // change the stored previous values to trigger LCDUpdater to reset the text
     prevChanNum++;
