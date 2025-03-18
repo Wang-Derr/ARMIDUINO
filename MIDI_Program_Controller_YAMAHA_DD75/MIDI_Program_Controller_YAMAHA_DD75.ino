@@ -8,7 +8,7 @@
  * You should have received a copy of the GNU General Public License along with ARMIDUINO. If not, see <https://www.gnu.org/licenses/>. 
  */
 
-#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h> //https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library
 #include <MIDI.h>
 #include <Wire.h>
 #include "MIDI_YAMAHA_DD75_def.h"

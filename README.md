@@ -37,17 +37,32 @@ The generic implementation is meant to work with any MIDI capable device that us
 The control scheme for this implementation is as follows:
 
 - *Encoder0*:
-  - **Rotating**: Increment/Decrement the MSB value.
-  - **Pressing**: Reset the MSB value to 0.
+  - Default menu:
+    - **Rotating**: Increment/Decrement the MSB value.
+    - **Pressing**: Switches to the preset menu.
+  - Preset menu:
+    - **Rotating**: Rotates between presets.
+    - **Pressing**: Switches to the default menu.
 - *Encoder1*:
-  - **Rotating**: Increment/Decrement the LSB value.
-  - **Pressing**: Reset the LSB value to 0.
+  - Default menu:
+    - **Rotating**: Increment/Decrement the LSB value.
+    - **Pressing**: Prompts user to save current MIDI values as a preset.
+      - Preset save dialogue:
+        - **Rotating**: Rotates between preset slots.
+        - **Pressing Encoder0**: Cancel saving as preset.
+        - **Pressing Encoder1**: Save current MIDI values a preset.
 - *Encoder2*:
-  - **Rotating**: Increment/Decrement the PC number.
-  - **Pressing**: Reset the PC number to 1.
+  - Default Menu:
+    - **Rotating**: Increment/Decrement the PC number.
+    - **Pressing**: Toggle MIDI message auto-send on/off.
+  - Preset Menu:
+    - **Pressing**: Toggle MIDI message auto-send on/off.
 - *Encoder3*:
-  - **Rotating**: Increment/Decrement the MIDI channel number.
-  - **Pressing**: Send the designated MSB, LSB, and PC to the specified MIDI channel.
+  - Default Menu:
+    - **Rotating**: Increment/Decrement the MIDI channel number.
+    - **Pressing**: Send the designated MSB, LSB, and PC to the specified MIDI channel.
+  - Preset Menu:
+    - **Pressing**: Send the preset MSB, LSB, and PC to the specified MIDI channel.
 
 ### MIDI Program Controller for the YAMAHA DD75 (Device-Specific Implementation)
 
@@ -75,7 +90,7 @@ The control scheme for this implementation is as follows:
 
 ## Required Parts
 
-- 1x [Arduino Mega](https://store-usa.arduino.cc/products/arduino-mega-2560-rev3?selectedStore=us) (revision agnostic)
+- 1x Arduino of some type, I used an [Arduino Mega](https://store-usa.arduino.cc/products/arduino-mega-2560-rev3?selectedStore=us) (revision agnostic)
 - 2x 220 ohm resistors
 - 4x 5-pin rotary encoders
 - 1x 5-pin MIDI socket ([These are the ones I used](https://www.amazon.com/gp/product/B01GBT9RC0?psc=1); leaving a link because the 3D-printable enclosure is modeled with this specific MIDI jack in mind)
@@ -98,12 +113,11 @@ Please follow [this guide](Assembly_Instructions.md).
 
 ## Future Plans
 
-- Add a speed-dial feature to the generic implementation so that users can save and quickly access specific PC and CC value combinations.
 - Feel free to submit any feature request or improvements.
 
 ## Known bugs
 
-- Rotating the encoders too quickly in one direction will generate a signal that corresponds with a rotation in the opposite direction meaning the desired outcome may be reversed (e.g. incrementing a value too quickly may actually decrement it instead). This may be due to the lack of debouncing for the rotatry encoder output.
+- Rotating the encoders too quickly in one direction will generate a signal that corresponds with a rotation in the opposite direction meaning the desired outcome may be reversed (e.g. incrementing a value too quickly may actually decrement it instead). This may be due to the lack of debouncing for the rotary encoder output.
 - Feel free to report an Issue or make a Pull Request if you run into additional problems
 
 ## Appendix
@@ -116,6 +130,13 @@ Please follow [this guide](Assembly_Instructions.md).
 <sup>6</sup>*Probably confusing for some, myself included, but the MIDI Reference that Yamaha provides for the DD75 refers to each program/instrument as a "Voice"; therefore, I do as well. Usage here should not be confused for note polyphony as is the use case of the term "Voice" when applied (most often) to synthesizers.*
 
 ## Version Log
+
+### V1.2.0
+Features:
+- Presets! Users using the Generic Implementation can now set presets.
+- MIDI message auto-send for the Generic Implementation. Now instead of manually pressing an encoder to send a MIDI message, an auto-send mode can be toggled on so that any changes to MIDI CC or PC values will be sent without needing to press an additional button.
+
+Refer to the control scheme section above for how to use these new feature.
 
 ### V1.0.1
 Change:

@@ -8,61 +8,50 @@
  * You should have received a copy of the GNU General Public License along with ARMIDUINO. If not, see <https://www.gnu.org/licenses/>. 
  */
 
-#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h> // https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library
 #include <MIDI.h>
 #include <Wire.h>
-
-#define MSB_CC 0 // Standard MSB bank MIDI CC number
-#define MAX_MSB_VAL 127 // Your max MSB bank value
-
-#define LSB_CC 32 // Standard LSB bank MIDI CC number
-#define MAX_LSB_VAL 127 // Your max LSB bank value
-
-#define encCLK0 39
-#define encDT0 43
-#define encSW0 47
-
-#define encCLK1 2
-#define encDT1 3
-#define encSW1 4
-
-#define encCLK2 8
-#define encDT2 9
-#define encSW2 10
-
-#define encCLK3 11
-#define encDT3 12
-#define encSW3 13
+#include "MIDI_Program_Controller.h"
 
 // Set the LCD address to 0x27 for a 20 chars and 4 line display, your LCD address may vary
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-
 // Initializing variables for tracking Encoders
-int prevCLK0;
-int currCLK0;
-int stateSW0 = HIGH;
+byte prevCLK0;
+byte currCLK0;
+byte prevStateSW0 = HIGH;
+byte stateSW0 = HIGH;
 unsigned long lastSW0 = 0;
 
-int prevCLK1;
-int currCLK1;
-int stateSW1 = HIGH;
+byte prevCLK1;
+byte currCLK1;
+byte prevStateSW1 = HIGH;
+byte stateSW1 = HIGH;
 unsigned long lastSW1 = 0;
 
-int prevCLK2;
-int currCLK2;
-int stateSW2 = HIGH;
+byte prevCLK2;
+byte currCLK2;
+byte prevStateSW2 = HIGH;
+byte stateSW2 = HIGH;
 unsigned long lastSW2 = 0;
 
-int prevCLK3;
-int currCLK3;
-int stateSW3 = HIGH;
+byte prevCLK3;
+byte currCLK3;
+byte prevStateSW3 = HIGH;
+byte stateSW3 = HIGH;
 unsigned long lastSW3 = 0;
 
-byte MSBVal = 0;
-byte LSBVal = 0;
-byte PCNum = 1;
-byte chanNum = 1;
+program_change_properties_t activeProgChng; // Parameters of the selected MIDI message in the default menu
+
+program_change_properties_t presetProgChngArray[MAX_PRESET_VAL]; // stores MIDI message info for presets
+
+byte presetNum = 1;
+byte menuMode = 0; // 0 == default menu, 1 == preset menu
+byte sendFlag = false; // toggled to 'true' when a MIDI message is sent
+
+unsigned long sendTime = millis(); // Tracks how long since a MIDI message was sent
+
+byte autoSendFlag = false; // toggled to 'true' if auto sending is enabled
 
 // Initialize MIDI default configuration
 MIDI_CREATE_DEFAULT_INSTANCE();
@@ -73,9 +62,7 @@ void setup() {
 
   // initialize the LCD
   lcd.begin();
-  lcd.print("MSB  LSB  PC#  CH#");
-  lcd.setCursor(0, 1);
-  lcd.print("0    0    1    1");
+  DefaultDisp();
 
   // configure the pins for each encoder
   pinMode(encCLK0, INPUT);
@@ -100,173 +87,298 @@ void setup() {
 }
 
 /*
- * Function: MSBEncoder
- * Description: Encoder control for the MSB bank value
+ * Function: LCDClearLine
+ * Description: Clears a line from the LCD
+ * Input:
+ *   yPos - the line that needs clearing, expects value of 0 to 3
  */
-void MSBEncoder() {
+void LCDClearLine(byte yPos) {
+  if (yPos > 3) { // in a 4 line display, the possible range of values is 0-3
+    return;
+  }
+  lcd.setCursor(0, yPos);
+  lcd.print("                    ");
+}
+
+/*
+ * Function: DispValues
+ * Description: Writes the MIDI CC, PC, and channel info to the LCD
+ * Inputs:
+ *   MSB - most significant bit value, expects value of 0 to 127
+ *   LSB - least significant bit value, expects value of 0 to 127
+ *   PC - program change number, expects value of 1 to 128
+ *   chan - channel number, expects value of 1 to 16
+ */
+void DispValues(byte MSB, byte LSB, byte PC, byte chan) {
+  if (MSB > MAX_CC_VAL || LSB > MIN_CC_VAL || PC < MIN_PC_VAL || PC > MAX_PC_VAL || chan < MIN_MIDI_CH_VAL || chan > MAX_MIDI_CH_VAL) {
+    return;
+  }
+  LCDClearLine(1);
+  lcd.setCursor(0, 1);
+  lcd.print(MSB);
+  lcd.setCursor(5, 1);
+  lcd.print(LSB);
+  lcd.setCursor(10, 1);
+  lcd.print(PC);
+  lcd.setCursor(15, 1);
+  lcd.print(chan);
+}
+
+/*
+ * Function: DefaultDisp
+ * Description: Display the default menu
+ */
+void DefaultDisp() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("MSB  LSB  PC#  CH#");
+  DispValues(activeProgChng.MSBVal, activeProgChng.LSBVal, activeProgChng.PCNum, activeProgChng.chanNum);
+}
+
+/*
+ * Function: PresetMenu
+ * Description: Display the preset menu
+ */
+void PresetMenu() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Preset #");
+  lcd.print(presetNum);
+  DispValues(presetProgChngArray[presetNum - 1].MSBVal, presetProgChngArray[presetNum - 1].LSBVal, presetProgChngArray[presetNum - 1].PCNum, presetProgChngArray[presetNum - 1].chanNum);
+}
+
+/*
+ * Function: printMIDIMsgSnt
+ * Description: Provides visual feedback to users
+ */
+void printMIDIMsgSnt() {
+  LCDClearLine(2);
+  lcd.setCursor(0, 2);
+  lcd.print("MIDI message sent");
+  sendFlag = true;
+  sendTime = millis();
+}
+
+/*
+ * Function: SendMIDIMessage
+ * Description: Sends the two MIDI CC values and single PC value to the provided MIDI channel
+ * Inputs:
+ *   MSB - most significant bit value, expects value of 0 to 127
+ *   LSB - least significant bit value, expects value of 0 to 127
+ *   PC - program change number, expects value of 1 to 128
+ *   chan - channel number, expects value of 1 to 16
+ */
+void SendMIDIMessage(byte MSB, byte LSB, byte PC, byte chan) {
+  if (MSB > MAX_CC_VAL || LSB > MIN_CC_VAL || PC < MIN_PC_VAL || PC > MAX_PC_VAL || chan < MIN_MIDI_CH_VAL || chan > MAX_MIDI_CH_VAL) {
+    return;
+  }
+  // Send a MIDI CC message to set the MSB value
+  MIDI.sendControlChange(MSB_CC, MSB, chan);
+  delay(MIDI_DELAY);
+  // Send a MIDI CC message to set the LSB value
+  MIDI.sendControlChange(LSB_CC, LSB, chan);
+  delay(MIDI_DELAY);
+  // Send a MIDI PC message to set the Program Number
+  MIDI.sendProgramChange(PC, chan);
+  printMIDIMsgSnt();  
+}
+
+/*
+ * Function: EncoderFunc
+ * Description: Reads changes in encoder state and sets values accordingly
+ */
+void EncoderFunc(byte encDT, byte currCLK, byte *val, byte maxVal, byte minVal, byte xPos, byte yPos, byte *prevCLK) {
+  if (digitalRead(encDT) != currCLK) {
+      if (*val == maxVal) {
+        *val = minVal;
+      } else {
+        *val += 1;
+      }
+    } else {
+      if (*val == minVal) {
+        *val = maxVal;
+      } else {
+        *val -= 1;
+      }
+    }
+    lcd.setCursor(xPos, yPos);
+    lcd.print("   ");
+    lcd.setCursor(xPos, yPos);
+    lcd.print(*val);
+    *prevCLK = currCLK;
+}
+
+/*
+ * Function: Encoder0
+ * Description: Encoder control for the MSB bank value and the Preset menu
+ */
+void Encoder0() {
   currCLK0 = digitalRead(encCLK0);
   if (currCLK0 != prevCLK0) {
-    // clockwise rotation of encoder increases the value
-    if (digitalRead(encDT0) != currCLK0) {
-      // If you try to exceed the max value, it will return to 0
-      if (MSBVal == MAX_MSB_VAL) {
-        MSBVal = 0;
-      } else {
-        MSBVal++;
+    if (menuMode) { // Preset Menu
+      EncoderFunc(encDT0, currCLK0, &presetNum, MAX_PRESET_VAL, MIN_PRESET_VAL, 8, 0, &prevCLK0);
+      DispValues(presetProgChngArray[presetNum - 1].MSBVal, presetProgChngArray[presetNum - 1].LSBVal, presetProgChngArray[presetNum - 1].PCNum, presetProgChngArray[presetNum - 1].chanNum);
+      if (autoSendFlag) {
+        SendMIDIMessage(presetProgChngArray[presetNum - 1].MSBVal, presetProgChngArray[presetNum - 1].LSBVal, presetProgChngArray[presetNum - 1].PCNum, presetProgChngArray[presetNum - 1].chanNum);
+        printMIDIMsgSnt();
       }
-    // counter-clockwise rotation of encoder increases the value
-    } else {
-      if (MSBVal== 0) {
-        MSBVal = MAX_MSB_VAL;
-      } else {
-        MSBVal--;
+    } else { // Default Menu
+      EncoderFunc(encDT0, currCLK0, &activeProgChng.MSBVal, MAX_CC_VAL, MIN_CC_VAL, 0, 1, &prevCLK0);
+      if (autoSendFlag) {
+        MIDI.sendControlChange(MSB_CC, activeProgChng.MSBVal, activeProgChng.chanNum);
+        printMIDIMsgSnt();
       }
     }
-    // clear the existing on-screen value
-    lcd.setCursor(0, 1);
-    lcd.print("   ");
-    lcd.setCursor(0, 1);
-    lcd.print(String(MSBVal));
-    prevCLK0 = currCLK0;
   }
-  // pressing the encoder will reset the value to 0
+  // pressing the encoder will toggle between the default menu and the preset menu
   stateSW0 = digitalRead(encSW0);
-  if (stateSW0 == LOW && millis() - lastSW0 > 50) {
-    MSBVal = 0;
-    lcd.setCursor(0, 1);
-    lcd.print("   ");
-    lcd.setCursor(0, 1);
-    lcd.print(String(MSBVal));
+  if ((stateSW0 == LOW && (stateSW0 != prevStateSW0)) && ((millis() - lastSW0) > DEBOUNCE)) {
     lastSW0 = millis();
+    prevStateSW0 = LOW;
+    if (menuMode) {
+      DefaultDisp();
+      menuMode = 0;
+    } else {
+      PresetMenu();
+      menuMode = 1;
+    }
+  } else if (stateSW0 == HIGH) {
+    prevStateSW0 = HIGH;
   }
 }
 
 /*
- * Function: LSBEncoder
- * Description: Encoder control for the LSB bank value
+ * Function: Encoder1
+ * Description: Encoder control for the LSB bank value and setting Presets
  */
-void LSBEncoder() {
+void Encoder1() {
   currCLK1 = digitalRead(encCLK1);
-  if (currCLK1 != prevCLK1) {
-    if (digitalRead(encDT1) != currCLK1) {
-      if (LSBVal == MAX_LSB_VAL) {
-        LSBVal = 0;
-      } else {
-        LSBVal++;
-      }
-    } else {
-      if (LSBVal == 0) {
-        LSBVal = MAX_LSB_VAL;
-      } else {
-        LSBVal--;
+  if (currCLK1 != prevCLK1 && !menuMode) {
+    if (!menuMode) {
+      EncoderFunc(encDT1, currCLK1, &activeProgChng.LSBVal, MAX_CC_VAL, MIN_CC_VAL, 5, 1, &prevCLK1);
+      if (autoSendFlag) {
+        MIDI.sendControlChange(LSB_CC, activeProgChng.LSBVal, activeProgChng.chanNum);
+        printMIDIMsgSnt();
       }
     }
-    lcd.setCursor(5, 1);
-    lcd.print("   ");
-    lcd.setCursor(5, 1);
-    lcd.print(String(LSBVal));
-    prevCLK1 = currCLK1;
   }
   stateSW1 = digitalRead(encSW1);
-  if (stateSW1 == LOW && millis() - lastSW1 > 50) {
-    LSBVal = 0;
-    lcd.setCursor(5, 1);
-    lcd.print("   ");
-    lcd.setCursor(5, 1);
-    lcd.print(String(LSBVal));
+  if ((stateSW1 == LOW && stateSW1 != prevStateSW1) && ((millis() - lastSW1) > DEBOUNCE) && !menuMode) {
     lastSW1 = millis();
+    prevStateSW1 = LOW;
+    // Set as preset, enter dialogue that allows user to choose which preset slot to fill
+    byte tmpPreset = 1;
+    lcd.setCursor(0, 2);
+    lcd.print("Choose preset slot:");
+    lcd.setCursor(0, 3);
+    lcd.print(tmpPreset);
+    while(true) {
+      currCLK1 = digitalRead(encCLK1);
+      if (currCLK1 != prevCLK1) {
+        EncoderFunc(encDT1, currCLK1, &tmpPreset, MAX_PRESET_VAL, MIN_PRESET_VAL, 0, 3, &prevCLK1);
+      }
+      stateSW1 = digitalRead(encSW1);
+      stateSW0 = digitalRead(encSW0);
+      if ((stateSW1 == LOW && (stateSW1 != prevStateSW1)) && ((millis() - lastSW1) > DEBOUNCE)) { // save and exit
+        lastSW1 = millis();
+        prevStateSW1 = LOW;
+        presetProgChngArray[tmpPreset - 1].MSBVal = activeProgChng.MSBVal;
+        presetProgChngArray[tmpPreset - 1].LSBVal = activeProgChng.LSBVal;
+        presetProgChngArray[tmpPreset - 1].PCNum = activeProgChng.PCNum;
+        presetProgChngArray[tmpPreset - 1].chanNum = activeProgChng.chanNum;
+        LCDClearLine(2);
+        LCDClearLine(3);
+        break;
+      } else if (stateSW1 == HIGH) {
+        prevStateSW1 = HIGH;
+      }
+      if ((stateSW0 == LOW && (stateSW0 != prevStateSW0)) && ((millis() - lastSW0) > DEBOUNCE)) { // exit without saving
+        lastSW0 = millis();
+        prevStateSW0 = LOW;
+        LCDClearLine(2);
+        LCDClearLine(3);
+        break;
+      } else if (stateSW0 == HIGH) {
+        prevStateSW0 = HIGH;
+      }
+    }
+  } else if (stateSW1 == HIGH) {
+    prevStateSW1 = HIGH;
   }
 }
 
 /*
- * Function: PCNumEncoder
- * Description: Encoder control for the Program Control value
+ * Function: Encoder2
+ * Description: Encoder control for the Program Control value and toggle for auto sending MIDI messages
  */
-void PCNumEncoder() {
+void Encoder2() {
   currCLK2 = digitalRead(encCLK2);
   if (currCLK2 != prevCLK2) {
-    if (digitalRead(encDT2) != currCLK2) {
-      // Program Change values range from 1-128
-      if (PCNum == 128) {
-        PCNum = 1;
-      } else {
-        PCNum++;
-      }
-    } else {
-      if (PCNum == 1) {
-        PCNum = 128;
-      } else {
-        PCNum--;
+    if (!menuMode) {
+      EncoderFunc(encDT2, currCLK2, &activeProgChng.PCNum, MAX_PC_VAL, MIN_PC_VAL, 10, 1, &prevCLK2);
+      if (autoSendFlag) {
+        MIDI.sendProgramChange(activeProgChng.PCNum, activeProgChng.chanNum);
+        printMIDIMsgSnt();
       }
     }
-    lcd.setCursor(10, 1);
-    lcd.print("   ");
-    lcd.setCursor(10, 1);
-    lcd.print(String(PCNum));
-    prevCLK2 = currCLK2;
   }
   stateSW2 = digitalRead(encSW2);
-  if (stateSW2 == LOW && millis() - lastSW2 > 50) {
-    PCNum = 1;
-    lcd.setCursor(10, 1);
-    lcd.print("   ");
-    lcd.setCursor(10, 1);
-    lcd.print(String(PCNum));
+  if ((stateSW2 == LOW && stateSW2 != prevStateSW2) && ((millis() - lastSW2) > DEBOUNCE)) {
+    // Toggle automatic message send VS manual message send
     lastSW2 = millis();
+    prevStateSW2 = LOW;
+    if (autoSendFlag) {
+      autoSendFlag = false;
+      if (sendFlag) {
+        sendFlag = false;
+        LCDClearLine(2);
+        sendFlag = false;
+      }
+    } else {
+      autoSendFlag = true;
+    }
+  } else if (stateSW2 == HIGH) {
+    prevStateSW2 = HIGH;
   }
 }
 
 /*
- * Function: ChanNumEncoder
- * Description: Encoder control for the MIDI channel number
+ * Function: Encoder3
+ * Description: Encoder control for the MIDI channel number and sending MIDI messages
  */
-void ChanNumEncoder() {
+void Encoder3() {
   currCLK3 = digitalRead(encCLK3);
   if (currCLK3 != prevCLK3) {
-    if (digitalRead(encDT3) != currCLK3) {
-      // MIDI channel numbers range from 1-16
-      if (chanNum == 16) {
-        chanNum = 1;
-      } else {
-        chanNum++;
-      }
-    } else {
-      if (chanNum == 1) {
-        chanNum = 16;
-      } else {
-        chanNum--;
-      }
+    if (!menuMode) {
+      EncoderFunc(encDT3, currCLK3, &activeProgChng.chanNum, MAX_MIDI_CH_VAL, MIN_MIDI_CH_VAL, 15, 1, &prevCLK3);
     }
-    lcd.setCursor(15, 1);
-    lcd.print("   ");
-    lcd.setCursor(15, 1);
-    lcd.print(String(chanNum));
-    prevCLK3 = currCLK3;
   }
   // pressing this encoder will send the displayed values over MIDI
   stateSW3 = digitalRead(encSW3);
-  if (stateSW3 == LOW && millis() - lastSW3 > 50) {
-    // Send a MIDI CC message to set the MSB value
-    MIDI.sendControlChange(MSB_CC, MSBVal, chanNum);
-    delay(300);
-    // Send a MIDI CC message to set the LSB value
-    MIDI.sendControlChange(LSB_CC, LSBVal, chanNum);
-    delay(300);
-    // Send a MIDI PC message to set the Program Number
-    MIDI.sendProgramChange(PCNum, chanNum);
-
-    lcd.setCursor(0, 2);
-    lcd.print(String("                    "));
-    lcd.setCursor(0, 2);
-    lcd.print(String(MSBVal) + String("-") + String(LSBVal) + String("-") + String(PCNum) + String("-") + String(chanNum) + String(" sent"));
+  if ((stateSW3 == LOW && stateSW3 != prevStateSW3) && ((millis() - lastSW3) > DEBOUNCE)) {
+    if (menuMode) {
+      SendMIDIMessage(presetProgChngArray[presetNum - 1].MSBVal, presetProgChngArray[presetNum - 1].LSBVal, presetProgChngArray[presetNum - 1].PCNum, presetProgChngArray[presetNum - 1].chanNum);
+    } else {
+      SendMIDIMessage(activeProgChng.MSBVal, activeProgChng.LSBVal, activeProgChng.PCNum, activeProgChng.chanNum);
+    }
     lastSW3 = millis();
+    prevStateSW3 = LOW;
+  } else if (stateSW3 == HIGH) {
+    prevStateSW3 = HIGH;
   }
 }
 
 void loop() {
   // Loop will constantly detect changes to the encoder states and react accordingly
-  MSBEncoder();
-  LSBEncoder();
-  PCNumEncoder();
-  ChanNumEncoder();
+  Encoder0();
+  Encoder1();
+  Encoder2();
+  Encoder3();
+  // Wipes the "MIDI message sent" notification
+  if (sendFlag) {
+    if (millis() - sendTime >= MESSAGE_DURATION) {
+      LCDClearLine(2);
+      sendFlag = false;
+    }
+  }
 }
